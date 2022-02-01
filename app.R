@@ -7,6 +7,11 @@
 #    http://shiny.rstudio.com/
 #
 
+# TO DO:
+#   -- add filter for sessions ONLY containing file classifications (vs. ANY)
+#   -- handle where vox dim = NA
+#   -- add age at imaging filter
+
 library(shiny)
 library(shinydashboard)
 library(shinyWidgets)
@@ -14,33 +19,51 @@ library(ggplot2)
 library(dplyr)
 library(DT)
 
-histdata <- read.csv('~/Documents/R/shiny/imaging_parameters/cbtn_imaging_parameters/fw_table_4_shiny.csv', header = TRUE)
-#filtered_df = subset(histdata, magnetic_field_strength!="NULL")
+# code for making horizontal scroll bar @ top of DT data table
+css <- HTML(
+  "#table > .dataTables_wrapper.no-footer > .dataTables_scroll > .dataTables_scrollBody {
+  transform:rotateX(180deg);
+  }
+  #table > .dataTables_wrapper.no-footer > .dataTables_scroll > .dataTables_scrollBody table{
+  transform:rotateX(180deg);
+   }"
+)
 
-# remove specific projects
-filtered_df = subset(histdata, project_label!="CBTN_D0143")
-filtered_df = subset(filtered_df, project_label!="CBTN_D0146")
+#setwd('~/Documents/R/shiny/imaging_parameters/cbtn_imaging_parameters')
+
+#histdata <- read.csv("~/Documents/R/shiny/imaging_parameters/cbtn_imaging_parameters/fw_table_4_shiny.csv", header = TRUE)
+histdata <- read.csv("fw_table_4_shiny.csv", header = TRUE)
+
+filtered_df <- histdata
 
 # convert Magnetic field strengths to numbers
 # harmonize and round values
+#filtered_df = subset(filtered_df, magnetic_field_strength!="NULL")
 filtered_df$magnetic_field_strength <- as.numeric(filtered_df$magnetic_field_strength)
 filtered_df$magnetic_field_strength[filtered_df$magnetic_field_strength==15000]<-1.5
 filtered_df$magnetic_field_strength<-round(filtered_df$magnetic_field_strength, digits = 1)
 
+filtered_df$magnetic_field_strength[is.na(filtered_df$magnetic_field_strength)]<-"N/A"
+
+# adjust body-part labels
+filtered_df$body_part_examined[filtered_df$body_part_examined=="iac"]<-"brain (iac)"
+filtered_df$body_part_examined[filtered_df$body_part_examined=="pituitary"]<-"brain (pituitary)"
+filtered_df$body_part_examined[filtered_df$body_part_examined=="face"]<-"brain (face)"
+
 # convert voxel dimension fields to numbers
-filtered_df$dim1 <- as.numeric(filtered_df$dim1)
-filtered_df$dim2 <- as.numeric(filtered_df$dim2)
-filtered_df$dim3 <- as.numeric(filtered_df$dim3)
+#filtered_df$dim1 <- as.numeric(filtered_df$dim1)
+#filtered_df$dim2 <- as.numeric(filtered_df$dim2)
+#filtered_df$dim3 <- as.numeric(filtered_df$dim3)
 
 # combine FW classifications into 1 label
 filtered_df$fw_class <- paste(filtered_df$file_classification_intent,
                               filtered_df$file_classification_measurement,
                               filtered_df$file_classification_features)
+filtered_df$fw_class[filtered_df$fw_class=="  "]<-"None"
 
-#   REMOVE NO-MODALITY FILES (CT)
-
-#   -- add filter for sessions ONLY containing file classifications (vs. ANY)
-#   -- handle where vox dim = NA
+# filter text
+diagnoses <- as.character(unique(sort(filtered_df$project_label)))
+file_types <- unique(sort(filtered_df$fw_class,decreasing = TRUE,))
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -52,8 +75,8 @@ ui <- fluidPage(
     valueBoxOutput("sessions_w_img_report")
   ),
   sidebarPanel(
-    pickerInput("fw_proj","Cancer type", choices=unique(sort(filtered_df$project_label)),
-                                         selected=unique(sort(filtered_df$project_label)),
+    pickerInput("fw_proj","Diagnosis", choices=diagnoses,
+                                         selected=diagnoses,
                                          options = list(`actions-box` = TRUE),
                                          multiple = T),
 
@@ -76,42 +99,43 @@ ui <- fluidPage(
                                        selected = unique(filtered_df$event_label)
                                        ),
                     
-                    sliderInput("dim1_range",
-                                "Voxel size: dim1",
-                                min = min(filtered_df$dim1, na.rm = TRUE),  
-                                max = max(filtered_df$dim1, na.rm = TRUE), 
-                                value = c(min(filtered_df$dim1, na.rm = TRUE), 
-                                          max(filtered_df$dim1, na.rm = TRUE)),
-                                sep = "",),
-                    sliderInput("dim2_range",
-                                "Voxel size: dim2",
-                                min = min(filtered_df$dim2, na.rm = TRUE),  
-                                max = max(filtered_df$dim2, na.rm = TRUE), 
-                                value = c(min(filtered_df$dim2, na.rm = TRUE), 
-                                          max(filtered_df$dim2, na.rm = TRUE)),
-                                sep = "",),
-                    sliderInput("dim3_range",
-                                "Voxel size: dim3",
-                                min = min(filtered_df$dim3, na.rm = TRUE),  
-                                max = max(filtered_df$dim3, na.rm = TRUE), 
-                                value = c(min(filtered_df$dim3, na.rm = TRUE), 
-                                          max(filtered_df$dim3, na.rm = TRUE)),
-                                sep = "",),
+                    # sliderInput("dim1_range",
+                    #             "Voxel size: dim1",
+                    #             min = min(filtered_df$dim1, na.rm = TRUE),  
+                    #             max = max(filtered_df$dim1, na.rm = TRUE), 
+                    #             value = c(min(filtered_df$dim1, na.rm = TRUE), 
+                    #                       max(filtered_df$dim1, na.rm = TRUE)),
+                    #             sep = "",),
+                    # sliderInput("dim2_range",
+                    #             "Voxel size: dim2",
+                    #             min = min(filtered_df$dim2, na.rm = TRUE),  
+                    #             max = max(filtered_df$dim2, na.rm = TRUE), 
+                    #             value = c(min(filtered_df$dim2, na.rm = TRUE), 
+                    #                       max(filtered_df$dim2, na.rm = TRUE)),
+                    #             sep = "",),
+#                    sliderInput("dim3_range",
+#                                "Voxel size: dim3",
+#                                min = min(filtered_df$dim3, na.rm = TRUE),  
+#                                max = max(filtered_df$dim3, na.rm = TRUE), 
+#                                value = c(min(filtered_df$dim3, na.rm = TRUE), 
+#                                          max(filtered_df$dim3, na.rm = TRUE)),
+#                                sep = "",),
                     
                     actionLink("selectallbody","Select/deselect All Body Parts"),
                     checkboxGroupInput(inputId = "BodyPartFinder",
                                        label = "Body part examined",
-                                       choices = unique(filtered_df$body_part_examined),
-                                       selected = unique(filtered_df$body_part_examined)
+                                       choices = unique(sort(filtered_df$body_part_examined)),
+                                       selected = unique(sort(filtered_df$body_part_examined))
                     ),
                     
                     actionLink("selectall","Select/deselect All File Types"),
                     checkboxGroupInput(inputId = "ClassificationFinder",
                                        label = "File classification",
-                                       choices = unique(sort(filtered_df$fw_class)),
-                                       selected = unique(sort(filtered_df$fw_class)))
+                                       choices = file_types,
+                                       selected = file_types)
             )
   ),
+  tags$head(tags$style(css)), # horiz scroll bar
   fluidRow(
     column(7, # width
            DT::dataTableOutput('table')
@@ -126,11 +150,11 @@ server <- function(input, output, session) {
     if(input$selectall == 0) return(NULL) 
     else if (input$selectall%%2 == 0)
     {
-      updateCheckboxGroupInput(session,"ClassificationFinder","File classification",choices=unique(sort(filtered_df$fw_class)))
+      updateCheckboxGroupInput(session,"ClassificationFinder","File classification",choices=file_types)
     }
     else
     {
-      updateCheckboxGroupInput(session,"ClassificationFinder","File classification",choices=unique(sort(filtered_df$fw_class)),selected=unique(sort(filtered_df$fw_class)))
+      updateCheckboxGroupInput(session,"ClassificationFinder","File classification",choices=file_types,selected=file_types)
     }
   })
 
@@ -150,17 +174,17 @@ server <- function(input, output, session) {
   # filter the input dataframe
   final_df <- reactive({
     r_df <- filter(filtered_df, project_label %in% input$fw_proj ) %>%
-    filter(file_modality %in% input$ModalityFinder ) %>%
-    filter(fw_class %in% input$ClassificationFinder ) %>%
-    filter(event_label %in% input$EventFinder ) %>%
-    filter(body_part_examined %in% input$BodyPartFinder ) %>%
-    filter(magnetic_field_strength %in% input$FieldStrengthFinder )
+            filter(file_modality %in% input$ModalityFinder ) %>%
+            filter(fw_class %in% input$ClassificationFinder ) %>%
+            filter(event_label %in% input$EventFinder ) %>%
+            filter(body_part_examined %in% input$BodyPartFinder ) %>%
+            filter(magnetic_field_strength %in% input$FieldStrengthFinder )
+            
+    # r_df <- r_df[r_df$dim1 >= input$dim1_range[1] & r_df$dim1 <= input$dim1_range[2],]
+    # r_df <- r_df[r_df$dim2 >= input$dim2_range[1] & r_df$dim2 <= input$dim2_range[2],]
+#    r_df <- r_df[r_df$dim3 >= input$dim3_range[1] & r_df$dim3 <= input$dim3_range[2],]
     
-    r_df <- r_df[r_df$dim1 >= input$dim1_range[1] & r_df$dim1 <= input$dim1_range[2],]
-    r_df <- r_df[r_df$dim2 >= input$dim2_range[1] & r_df$dim2 <= input$dim2_range[2],]
-    r_df <- r_df[r_df$dim3 >= input$dim3_range[1] & r_df$dim3 <= input$dim3_range[2],]
-    
-    r_df = subset(r_df, select = c("subject_label","session_label","acquisition_label","file_modality","magnetic_field_strength","fw_class","dim1","dim2","event_label",'body_part_examined') )
+    r_df = subset(r_df, select = c("project_label","subject_label","session_label","acquisition_label","file_modality","magnetic_field_strength","fw_class","dim1","dim2","event_label",'body_part_examined') )
     r_df <- r_df[!duplicated(r_df), ]
     r_df <- r_df[order(r_df$subject_label,r_df$session_label,r_df$acquisition_label), ]
     r_df
@@ -205,7 +229,7 @@ server <- function(input, output, session) {
     dtable
   })
   
-  # construct the output
+  # construct the # subjects box
     output$subjects_w_img_report <- renderValueBox({
         df <- final_df() 
         distinct_sub_w_img <- df %>% summarise(n = n_distinct(`subject_label`))
@@ -215,6 +239,7 @@ server <- function(input, output, session) {
           valueBox(subtitle = "Number of subjects",
                    color = "green")
       })
+    # construct the # sessions box
     output$sessions_w_img_report <- renderValueBox({
       df <- final_df() 
       distinct_ses_w_img <- df %>% summarise(n = n_distinct(`session_label`))
