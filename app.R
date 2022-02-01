@@ -10,7 +10,7 @@
 # TO DO:
 #   -- add filter for sessions ONLY containing file classifications (vs. ANY)
 #   -- handle where vox dim = NA
-#   -- add age at imaging filter
+#   -- add DNA/RNA sequencing availability
 
 library(shiny)
 library(shinydashboard)
@@ -49,6 +49,9 @@ filtered_df$magnetic_field_strength[is.na(filtered_df$magnetic_field_strength)]<
 filtered_df$body_part_examined[filtered_df$body_part_examined=="iac"]<-"brain (iac)"
 filtered_df$body_part_examined[filtered_df$body_part_examined=="pituitary"]<-"brain (pituitary)"
 filtered_df$body_part_examined[filtered_df$body_part_examined=="face"]<-"brain (face)"
+
+# round ages
+filtered_df$age_at_imaging_in_years<-round(filtered_df$age_at_imaging_in_years, digits = 1)
 
 # convert voxel dimension fields to numbers
 #filtered_df$dim1 <- as.numeric(filtered_df$dim1)
@@ -98,6 +101,14 @@ ui <- fluidPage(
                                        choices = unique(filtered_df$event_label),
                                        selected = unique(filtered_df$event_label)
                                        ),
+
+                    sliderInput("age_range",
+                                "Age at imaging (years)",
+                                min = min(filtered_df$age_at_imaging_in_years),
+                                max = max(filtered_df$age_at_imaging_in_years),
+                                value = c(min(filtered_df$age_at_imaging_in_years),
+                                          max(filtered_df$age_at_imaging_in_years)),
+                                sep = "",),
                     
                     # sliderInput("dim1_range",
                     #             "Voxel size: dim1",
@@ -180,6 +191,8 @@ server <- function(input, output, session) {
             filter(body_part_examined %in% input$BodyPartFinder ) %>%
             filter(magnetic_field_strength %in% input$FieldStrengthFinder )
             
+    r_df <- r_df[r_df$age_at_imaging_in_years >= input$age_range[1] & r_df$age_at_imaging_in_years <= input$age_range[2],]
+    
     # r_df <- r_df[r_df$dim1 >= input$dim1_range[1] & r_df$dim1 <= input$dim1_range[2],]
     # r_df <- r_df[r_df$dim2 >= input$dim2_range[1] & r_df$dim2 <= input$dim2_range[2],]
 #    r_df <- r_df[r_df$dim3 >= input$dim3_range[1] & r_df$dim3 <= input$dim3_range[2],]
