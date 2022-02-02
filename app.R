@@ -7,12 +7,12 @@
 #    http://shiny.rstudio.com/
 #
 #   https://rstudio.github.io/shinydashboard/structure.html
+#   https://shiny.rstudio.com/tutorial/written-tutorial/lesson2/
 
 
 # TO DO:
 #   -- add filter for sessions ONLY containing file classifications (vs. ANY)
 #   -- handle where vox dim = NA
-#   -- add DNA/RNA and/or
 #   -- add description of fields at top
 
 library(shiny)
@@ -61,7 +61,17 @@ filtered_df$age_at_imaging_in_years<-round(filtered_df$age_at_imaging_in_years, 
 # convert voxel dimension fields to numbers
 #filtered_df$dim1 <- as.numeric(filtered_df$dim1)
 #filtered_df$dim2 <- as.numeric(filtered_df$dim2)
-#filtered_df$dim3 <- as.numeric(filtered_df$dim3)
+
+# construct 'coded' molec-status columns
+filtered_df$WGS_coded = filtered_df$WGS
+filtered_df$RNAseq_coded = filtered_df$RNAseq
+filtered_df$clin_event_coded = filtered_df$clin_event
+filtered_df$clin_other_coded = filtered_df$clin_other
+
+filtered_df$WGS_coded[filtered_df$WGS_coded=="Yes"] <- "WGS"
+filtered_df$RNAseq_coded[filtered_df$RNAseq_coded=="Yes"] <- "RNAseq"
+filtered_df$clin_event_coded[filtered_df$clin_event_coded=="Yes"] <- "Clinical Seq for Event"
+filtered_df$clin_other_coded[filtered_df$clin_other_coded=="Yes"] <- "Clinical Seq Other"
 
 # combine FW classifications into 1 label
 filtered_df$fw_class <- paste(filtered_df$file_classification_intent,
@@ -88,22 +98,79 @@ ui <- dashboardPage(
   # ========= Dashboard Body ==========
   dashboardBody(
     tabItems(
-      # first tab page
+      # ******** first tab page ******** 
       tabItem(tabName = "overview_tab",
-              titlePanel("Overview"),
-              mainPanel(
-                fluidRow(
-                  align = "left",
-                  div(style = "font-size:20px;",
-                      'This is where information will go')
-                ),
-                width = 12
+              # titlePanel("Overview"),
+              fluidRow(
+                box( width = 6,
+                     uiOutput(outputId = "d3b_logo") )
               ),
-      ),
+              
+              # mainPanel(
+                fluidRow(column(11,
+                  div("This application is designed to enable users to explore and curate data hosted on the D3b-Flywheel site.",
+                    style = "font-size:20px"),
+                  br(),
+                  div(HTML("For each available dataset there is a table of relevant subject, session, and image information."),
+                      style = "font-size:18px"),
+                  br(),
+                  div("The results in the table can be filtered by the user according to the properties listed below.",
+                      style = "font-size:18px"),
+                  br(),
+                  div(HTML("The results can be exported to an Excel file by clicking the <em><q>Download Current Page</q></em> button. In order to export the entire table, make sure to set the <em><q>Show</q></em> dropdown menu to <em><q>All</q></em> before downloading. Note that this may take a few moments to process depending on the size of the table."),
+                      style = "font-size:18px"),
+                  br()
+                  ) # col
+                  ), # fluidRow
+                fluidRow(column(11,
+                                p(strong("Description of Session Filters:",
+                                    style = "font-size:18px")),
+                  ) # col
+                ), # fluidRow
+                fluidRow(column(11, offset = 1,
+                                div(HTML("<u><em>Diagnosis:</em></u> Histological diagnosis (based on WHO classifiation for pediatric tumors)"),
+                                  style = "font-size:16px"),
+                                br(),
+                                div(HTML("<u><em>Molecular sequencing availability:</em></u> Whether there is DNA (whole genome seq), RNA, and/or clinical sequencing available for surgically collected biospecimins around the time of imaging (+/- 100 days). <br> <b>NOTE:</b> if OR is selected, will include cases with any of the selected methods available, if AND is selected, will include cases with all of the selected methods available."),
+                                    style = "font-size:16px"),
+                                br(),
+                                div(HTML("<u><em>Scan modalities:</em></u> Modality of scanner on which images were acquired."),
+                                    style = "font-size:16px"),
+                                br(),
+                                div(HTML("<u><em>Magnetic field strength:</em></u> Strength of magnetic field (for MR scans) in teslas (T)."),
+                                    style = "font-size:16px"),
+                                br(),
+                                div(HTML("<u><em>Imaging event:</em></u> Whether a given imaging event was collected prior to any treatment (Pre-treatment), during or after some form of treatment (Post or during treatment). <br> <b>NOTE:</b> If there is no available treatment info, the event is declared undetermined. These time points can include subjects who did not undergo any treatment as well as those without treatment dates available in our database but could have potentially undergone treatment (Undetermined)."),
+                                    style = "font-size:16px"),
+                                br(),
+                                div(HTML("<u><em>Age range:</em></u> Age (in years) at time of imaging."),
+                                    style = "font-size:16px"),
+                                br(),
+                                div(HTML("<u><em>Body part examined:</em></u> Body part scanned during the imaging exam."),
+                                    style = "font-size:16px"),
+                                br(),
+                ) # col
+                ), # fluidRow
+                fluidRow(column(11,
+                                p(strong("Description of Acquisition Filters:",
+                                         style = "font-size:18px")),
+                  ) # col
+                ), # fluidRow
+                fluidRow(column(11, offset=1,
+                                div(HTML("<u><em>File types:</em></u> Classification of the type of an acquisition based on text in the file name (file names are derived from the SeriesDescription field in original DICOMs). <br> <b>NOTE:</b> Sessions with any of the selected file types will be included."),
+                                    style = "font-size:16px"),
+                ) # col
+                ), # fluidRow
+              # ), # mainPanel
+      ), # tabItem
       
-      # second tab page
+      # ******** second tab page ******** 
       tabItem(tabName = "cbtn_imaging",
-              titlePanel("Children's Brain Tumor Network - Radiology Data"),
+              # titlePanel("Children's Brain Tumor Network (Radiology)"),
+              fluidRow(
+                box( width = 8,
+                     uiOutput(outputId = "cbtn_logo") )
+              ),
               
               # summary # boxes
               fluidRow(
@@ -112,20 +179,21 @@ ui <- dashboardPage(
               ),
               
               # left-hand filters
-              sidebarPanel(
+              sidebarPanel(width = 3,
                 pickerInput("fw_proj","Diagnosis", 
                             choices=diagnoses,
                             selected=diagnoses,
                             options = list(`actions-box` = TRUE),
                             multiple = T),
 
-                pickerInput("molec_status","Availability of molecular sequencing", 
+                pickerInput("molec_status","Molecular sequencing availability", 
                             choices=c("WGS","RNAseq","Clinical Seq for Event","Clinical Seq Other"),
                             selected=c(),
                             options = list(`actions-box` = TRUE),
                             multiple = T),
+                selectInput("filter_join1", label = "", choices = c("OR","AND")),
                 
-                fluidRow(  # Define filters
+                fluidRow(
                   checkboxGroupInput(inputId = "ModalityFinder",
                                      label = "Scan Modalities",
                                      choices = unique(filtered_df$file_modality),
@@ -166,13 +234,6 @@ ui <- dashboardPage(
                   #             value = c(min(filtered_df$dim2, na.rm = TRUE), 
                   #                       max(filtered_df$dim2, na.rm = TRUE)),
                   #             sep = "",),
-                  #                    sliderInput("dim3_range",
-                  #                                "Voxel size: dim3",
-                  #                                min = min(filtered_df$dim3, na.rm = TRUE),  
-                  #                                max = max(filtered_df$dim3, na.rm = TRUE), 
-                  #                                value = c(min(filtered_df$dim3, na.rm = TRUE), 
-                  #                                          max(filtered_df$dim3, na.rm = TRUE)),
-                  #                                sep = "",),
                   
                   actionLink("selectallbody","Select/deselect All Body Parts"),
                   checkboxGroupInput(inputId = "BodyPartFinder",
@@ -192,7 +253,7 @@ ui <- dashboardPage(
               # Data Table
               tags$head(tags$style(css)), # horiz scroll bar
               fluidRow(
-                column(7, # width
+                column(8, # width
                        DT::dataTableOutput('table')
                 )
               )
@@ -241,32 +302,71 @@ server <- function(input, output, session) {
             filter(body_part_examined %in% input$BodyPartFinder ) %>%
             filter(magnetic_field_strength %in% input$FieldStrengthFinder )
 
-    if('WGS' %in% input$molec_status){
-      r_df <- r_df[r_df$WGS == "Yes",]
-    }
-    if('RNAseq' %in% input$molec_status){
-      r_df <- r_df[r_df$RNAseq == "Yes",]
-    }
-    if('Clinical Seq for Event' %in% input$molec_status){
-      r_df <- r_df[r_df$clin_event == "Yes",]
-    }
-    if('Clinical Seq Other' %in% input$molec_status){
-      r_df <- r_df[r_df$clin_other == "Yes",]
-    }
+    wgs <- gsub("'", "", r_df$WGS_coded)
+    rna <- gsub("'", "", r_df$RNAseq_coded)
+    clin1 <- gsub("'", "", r_df$clin_event_coded)
+    clin2 <- gsub("'", "", r_df$clin_other_coded)
+    
+    # molec seq filter
+    if (!is.null(input$molec_status)){
+      # print(input$molec_status)
+      join1 <- ifelse(test = input$filter_join1 == "OR", yes = "| ", no = "& ")
+      if (join1=="| "){
+        cond_str <- paste0(
+                "with(input, ",
+                paste0("wgs %in% ", "c(", paste0("'", input$molec_status, collapse = "',"), "')", colapse = " "),
+                join1,
+                paste0("rna %in% ", "c(", paste0("'", input$molec_status, collapse = "',"), "')", colapse = " "),
+                join1,
+                paste0("clin1 %in% ", "c(", paste0("'", input$molec_status, collapse = "',"), "')", colapse = " "),
+                join1,
+                paste0("clin2 %in% ", "c(", paste0("'", input$molec_status, collapse = "',"), "')", colapse = " "),
+                ")")
+        cond <- parse(text = cond_str)
+        r_df <- as.data.frame(r_df)[eval(cond), ]
+        
+        } else {
+          
+            if('WGS' %in% input$molec_status){
+              r_df <- r_df[r_df$WGS == "Yes",]
+            }
+            if('RNAseq' %in% input$molec_status){
+              r_df <- r_df[r_df$RNAseq == "Yes",]
+            }
+            if('Clinical Seq for Event' %in% input$molec_status){
+              r_df <- r_df[r_df$clin_event == "Yes",]
+            }
+            if('Clinical Seq Other' %in% input$molec_status){
+              r_df <- r_df[r_df$clin_other == "Yes",]
+            }
+        }
+      }
 
+    # age-at-imaging filter
     r_df <- r_df[r_df$age_at_imaging_in_years >= input$age_range[1] & r_df$age_at_imaging_in_years <= input$age_range[2],]
     
+    # voxel sizes filter
     # r_df <- r_df[r_df$dim1 >= input$dim1_range[1] & r_df$dim1 <= input$dim1_range[2],]
     # r_df <- r_df[r_df$dim2 >= input$dim2_range[1] & r_df$dim2 <= input$dim2_range[2],]
-#    r_df <- r_df[r_df$dim3 >= input$dim3_range[1] & r_df$dim3 <= input$dim3_range[2],]
-    
-    r_df = subset(r_df, select = c("project_label","subject_label","session_label","acquisition_label","file_modality","magnetic_field_strength","fw_class","dim1","dim2","event_label",'body_part_examined') )
+
+    # clean up & output table
+#    r_df = subset(r_df, select = c("project_label","subject_label","session_label","acquisition_label","file_modality","magnetic_field_strength","fw_class","dim1","dim2","event_label",'body_part_examined') )
+    r_df = subset(r_df, select = c("project_label","subject_label","session_label","acquisition_label","file_modality","magnetic_field_strength","fw_class","event_label",'body_part_examined') )
     r_df <- r_df[!duplicated(r_df), ]
     r_df <- r_df[order(r_df$subject_label,r_df$session_label,r_df$acquisition_label), ]
     r_df
   })
 
-  #CBTN clinical table
+
+  # ********** render stuff **********************
+  # render images
+  output$cbtn_logo<-renderUI({
+    img(src='cbtn_logo.png', height = '150px')
+  })
+  output$d3b_logo<-renderUI({
+    img(src='d3b_logo_cropped.jpg', height = '150px')
+  })
+  
   output$table <- DT::renderDT( { #server = FALSE, { # if server = TRUE, then Download-all button doesn't work (but could remove it and keep Download-current-page w/"All" menu length)
     df <- final_df()
     dtable <- DT::datatable(df, 
@@ -286,14 +386,7 @@ server <- function(input, output, session) {
                                                 worksheet = 'new',
                                                 title = NULL
                                               )
-#                                         ),
-#                                         list(extend = "excel", text = "Download Full Results", filename = "flywheel_cbtn_file_metadata",
-#                                              exportOptions = list(
-#                                                modifier = list(page = "all"),
-#                                                worksheet = 'new',
-#                                                title = NULL
                                               ) # list
-#                                         ) # list
                                        )
                         ) # datatable
     ) # renderDT
