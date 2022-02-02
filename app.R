@@ -21,6 +21,7 @@ library(shinyWidgets)
 library(ggplot2)
 library(dplyr)
 library(DT)
+library(plyr)
 
 # code for making horizontal scroll bar @ top of DT data table
 css <- HTML(
@@ -410,10 +411,11 @@ server <- function(input, output, session) {
       })
     # construct the # sessions box
     output$sessions_w_img_report <- renderValueBox({
-      df <- final_df() 
-      distinct_ses_w_img <- df %>% summarise(n = n_distinct(`session_label`))
-      distinct_ses_w_img %>%
-        as.integer() %>%
+      df <- final_df()
+      distinct_ses_w_img <- df %>% group_by(subject_label) %>%
+                                   dplyr::summarise(n = n_distinct(session_label))
+      sum(distinct_ses_w_img$n) %>%
+        # as.integer() %>%
         prettyNum(big.mark = ",") %>%
         valueBox(subtitle = "Number of sessions",
                  color = "green")
