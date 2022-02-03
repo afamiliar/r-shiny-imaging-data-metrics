@@ -11,9 +11,9 @@
 
 
 # TO DO:
+#   -- add filters for file created & modified dates
 #   -- add filter for sessions ONLY containing file classifications (vs. ANY)
-#   -- handle where vox dim = NA
-#   -- add description of fields at top
+#   -- include vox dim? (if so, handle where vox dim = NA)
 
 library(shiny)
 library(shinydashboard)
@@ -21,7 +21,6 @@ library(shinyWidgets)
 library(ggplot2)
 library(dplyr)
 library(DT)
-library(plyr)
 
 # code for making horizontal scroll bar @ top of DT data table
 css <- HTML(
@@ -38,7 +37,7 @@ css <- HTML(
 # ==================== Load & prep data ==============================================================================
 
 #histdata <- read.csv("~/Documents/R/shiny/imaging_parameters/cbtn_imaging_parameters/fw_table_4_shiny.csv", header = TRUE)
-histdata <- read.csv("fw_table_4_shiny.csv", header = TRUE)
+histdata <- read.csv("fw_table_4_shiny.csv", header = TRUE, stringsAsFactors=FALSE)
 
 filtered_df <- histdata
 
@@ -80,12 +79,16 @@ filtered_df$fw_class <- paste(filtered_df$file_classification_intent,
                               filtered_df$file_classification_features)
 filtered_df$fw_class[filtered_df$fw_class=="  "]<-"None"
 
+# date <- as.Date(as.character(date), format = "%Y-%m-%d")
+
 # filter text
 diagnoses <- as.character(unique(sort(filtered_df$project_label)))
 file_types <- unique(sort(filtered_df$fw_class,decreasing = TRUE,))
+body_parts <- unique(sort(filtered_df$body_part_examined))
 
 # ==================================================================================================
 ui <- dashboardPage(
+
   # ========= Dashboard Header ==========
   dashboardHeader(title = "Flywheel Data Metrics"),
   
@@ -96,6 +99,7 @@ ui <- dashboardPage(
       menuItem("CBTN Imaging Data", tabName = "cbtn_imaging", icon = icon("table"))
     )
   ),
+  
   # ========= Dashboard Body ==========
   dashboardBody(
     tabItems(
@@ -129,10 +133,10 @@ ui <- dashboardPage(
                   ) # col
                 ), # fluidRow
                 fluidRow(column(11, offset = 1,
-                                div(HTML("<u><em>Diagnosis:</em></u> Histological diagnosis (based on WHO classifiation for pediatric tumors)"),
+                                div(HTML("<u><em>Diagnosis:</em></u> Histological diagnosis (based on WHO classifiation for pediatric tumors)."),
                                   style = "font-size:16px"),
                                 br(),
-                                div(HTML("<u><em>Molecular sequencing availability:</em></u> Whether there is DNA (whole genome seq), RNA, and/or clinical sequencing available for surgically collected biospecimins around the time of imaging (+/- 100 days). <br> <b>NOTE:</b> if OR is selected, will include cases with any of the selected methods available, if AND is selected, will include cases with all of the selected methods available."),
+                                div(HTML("<u><em>Molecular sequencing availability:</em></u> Whether there is DNA (whole genome seq), RNA, and/or clinical sequencing available for surgically collected biospecimens around the time of imaging (+/- 100 days). <br> <b>NOTE:</b> if OR is selected, will include cases with any of the selected methods available, if AND is selected, will include cases with all of the selected methods available."),
                                     style = "font-size:16px"),
                                 br(),
                                 div(HTML("<u><em>Scan modalities:</em></u> Modality of scanner on which images were acquired."),
@@ -141,10 +145,10 @@ ui <- dashboardPage(
                                 div(HTML("<u><em>Magnetic field strength:</em></u> Strength of magnetic field (for MR scans) in teslas (T)."),
                                     style = "font-size:16px"),
                                 br(),
-                                div(HTML("<u><em>Imaging event:</em></u> Whether a given imaging event was collected prior to any treatment (Pre-treatment), during or after some form of treatment (Post or during treatment). <br> <b>NOTE:</b> If there is no available treatment info, the event is declared undetermined. These time points can include subjects who did not undergo any treatment as well as those without treatment dates available in our database but could have potentially undergone treatment (Undetermined)."),
+                                div(HTML("<u><em>Imaging event:</em></u> Whether a given imaging event was collected prior to any treatment (Pre-treatment), during or after some form of treatment (Post or during treatment). <br> <b>NOTE:</b> If there is no available treatment info, the event is declared undetermined. These time points can include subjects who have not undergone treatment as well as those without treatment dates available in our database but could have potentially undergone treatment (Undetermined)."),
                                     style = "font-size:16px"),
                                 br(),
-                                div(HTML("<u><em>Age range:</em></u> Age (in years) at time of imaging."),
+                                div(HTML("<u><em>Age range:</em></u> Age (in years) at time of imaging (range specifies dates to include)."),
                                     style = "font-size:16px"),
                                 br(),
                                 div(HTML("<u><em>Body part examined:</em></u> Body part scanned during the imaging exam."),
@@ -160,7 +164,13 @@ ui <- dashboardPage(
                 fluidRow(column(11, offset=1,
                                 div(HTML("<u><em>File types:</em></u> Classification of the type of an acquisition based on text in the file name (file names are derived from the SeriesDescription field in original DICOMs). <br> <b>NOTE:</b> Sessions with any of the selected file types will be included."),
                                     style = "font-size:16px"),
-                ) # col
+                                br(),
+                                div(HTML("<u><em>File added to Flywheel:</em></u> Date that a file was uploaded to Flywheel (range specifies dates to include)."),
+                                    style = "font-size:16px"),
+                                br(),
+                                div(HTML("<u><em>File modified on Flywheel:</em></u> Date that a file was modified on Flywheel (range specifies dates to include). Modification can include updates to file information and classifications."),
+                                    style = "font-size:16px"),
+                                                  ) # col
                 ), # fluidRow
               # ), # mainPanel
       ), # tabItem
@@ -194,7 +204,7 @@ ui <- dashboardPage(
                             multiple = T),
                 selectInput("filter_join1", label = "", choices = c("OR","AND")),
                 
-                fluidRow(
+                # fluidRow(
                   checkboxGroupInput(inputId = "ModalityFinder",
                                      label = "Scan Modalities",
                                      choices = unique(filtered_df$file_modality),
@@ -221,6 +231,27 @@ ui <- dashboardPage(
                                         max(filtered_df$age_at_imaging_in_years)),
                               sep = "",),
                   
+                  # dateRangeInput('file_created_range',
+                  #                label = 'File added to Flywheel (yyyy-mm-dd)',
+                  #                start = min(as.Date(filtered_df$file_created)),
+                  #                end = Sys.Date(), # today
+                  #                min = min(as.Date(filtered_df$file_created)),
+                  #                max = Sys.Date()
+                  # ),
+                  # actionButton("resetFileCreate", "Reset"),
+                  # br(),
+                  # br(),
+                  # dateRangeInput('file_mod_range',
+                  #                label = 'File modified on Flywheel (yyyy-mm-dd)',
+                  #                start = min(as.Date(filtered_df$file_modified)),
+                  #                end = Sys.Date(), # today
+                  #                min = min(as.Date(filtered_df$file_modified)),
+                  #                max = Sys.Date()
+                  # ),
+                  # actionButton("resetFileMod", "Reset"),
+                  # br(),
+                  # br(),
+                
                   # sliderInput("dim1_range",
                   #             "Voxel size: dim1",
                   #             min = min(filtered_df$dim1, na.rm = TRUE),  
@@ -239,8 +270,8 @@ ui <- dashboardPage(
                   actionLink("selectallbody","Select/deselect All Body Parts"),
                   checkboxGroupInput(inputId = "BodyPartFinder",
                                      label = "Body part examined",
-                                     choices = unique(sort(filtered_df$body_part_examined)),
-                                     selected = unique(sort(filtered_df$body_part_examined))
+                                     choices = body_parts,
+                                     selected = body_parts
                   ),
                   
                   actionLink("selectall","Select/deselect All File Types"),
@@ -248,7 +279,7 @@ ui <- dashboardPage(
                                      label = "File classification",
                                      choices = file_types,
                                      selected = file_types)
-                )
+                # )
               ),
               
               # Data Table
@@ -286,14 +317,34 @@ server <- function(input, output, session) {
     if(input$selectallbody == 0) return(NULL) 
     else if (input$selectallbody%%2 == 0)
     {
-      updateCheckboxGroupInput(session,"BodyPartFinder","Body part examined",choices=unique(filtered_df$body_part_examined))
+      updateCheckboxGroupInput(session,"BodyPartFinder","Body part examined",choices=body_parts)
     }
     else
     {
-      updateCheckboxGroupInput(session,"BodyPartFinder","Body part examined",choices=unique(filtered_df$body_part_examined),selected=unique(filtered_df$body_part_examined))
+      updateCheckboxGroupInput(session,"BodyPartFinder","Body part examined",choices=body_parts, selected=body_parts)
     }
   })
   
+  # observeEvent(input$resetFileCreate, {
+  #   updateDateRangeInput(session,
+  #                   "file_created_range",
+  #                   start = min(as.Date(filtered_df$file_created)),
+  #                   end = Sys.Date(),
+  #                   min = min(as.Date(filtered_df$file_created)),
+  #                   max = Sys.Date()
+  #                   )
+  # })
+  # observeEvent(input$resetFileMod, {
+  #   updateDateRangeInput(session,
+  #                        "file_mod_range",
+  #                        start = min(as.Date(filtered_df$file_modified)),
+  #                        end = Sys.Date(),
+  #                        min = min(as.Date(filtered_df$file_modified)),
+  #                        max = Sys.Date()
+  #   )
+  # })
+  
+
   # filter the input dataframe
   final_df <- reactive({
     r_df <- filter(filtered_df, project_label %in% input$fw_proj ) %>%
@@ -345,19 +396,26 @@ server <- function(input, output, session) {
 
     # age-at-imaging filter
     r_df <- r_df[r_df$age_at_imaging_in_years >= input$age_range[1] & r_df$age_at_imaging_in_years <= input$age_range[2],]
+
+    # file dates filter
+    # r_df <- r_df[r_df$file_created >= input$file_created_range[1] & r_df$file_created <= input$file_created_range[2],]
+    # r_df <- r_df[r_df$file_modified >= input$file_mod_range[1] & r_df$file_modified <= input$file_mod_range[2],]
     
     # voxel sizes filter
     # r_df <- r_df[r_df$dim1 >= input$dim1_range[1] & r_df$dim1 <= input$dim1_range[2],]
     # r_df <- r_df[r_df$dim2 >= input$dim2_range[1] & r_df$dim2 <= input$dim2_range[2],]
 
     # clean up & output table
-#    r_df = subset(r_df, select = c("project_label","subject_label","session_label","acquisition_label","file_modality","magnetic_field_strength","fw_class","dim1","dim2","event_label",'body_part_examined') )
-    r_df = subset(r_df, select = c("project_label","subject_label","session_label","acquisition_label","file_modality","magnetic_field_strength","fw_class","event_label",'body_part_examined') )
+#    r_df = subset(r_df, select = c("project_label","subject_label","session_label",
+                                    # "acquisition_label","file_modality","magnetic_field_strength",
+                                    # "fw_class","dim1","dim2","event_label",'body_part_examined') )
+    r_df = subset(r_df, select = c("project_label","subject_label","session_label",
+                                   "acquisition_label","file_modality","magnetic_field_strength",
+                                   "fw_class","event_label",'body_part_examined') )
     r_df <- r_df[!duplicated(r_df), ]
     r_df <- r_df[order(r_df$subject_label,r_df$session_label,r_df$acquisition_label), ]
     r_df
   })
-
 
   # ********** render stuff **********************
   # render images
