@@ -166,11 +166,12 @@ ui <- dashboardPage(
                                     style = "font-size:16px"),
                                 br(),
                                 div(HTML("<u><em>File added to Flywheel:</em></u> Date that a file was uploaded to Flywheel (range specifies dates to include)."),
-                                    style = "font-size:16px"),
-                                br(),
-                                div(HTML("<u><em>File modified on Flywheel:</em></u> Date that a file was modified on Flywheel (range specifies dates to include). Modification can include updates to file information and classifications."),
-                                    style = "font-size:16px"),
-                                                  ) # col
+                                    style = "font-size:16px")
+                                # br(),
+                                # div(HTML("<u><em>File modified on Flywheel:</em></u> Date that a file was modified on Flywheel (range specifies dates to include). Modification can include updates to file information and classifications."),
+                                #     style = "font-size:16px"),
+                                #                   
+                                ) # col
                 ), # fluidRow
               # ), # mainPanel
       ), # tabItem
@@ -231,16 +232,16 @@ ui <- dashboardPage(
                                         max(filtered_df$age_at_imaging_in_years)),
                               sep = "",),
                   
-                  # dateRangeInput('file_created_range',
-                  #                label = 'File added to Flywheel (yyyy-mm-dd)',
-                  #                start = min(as.Date(filtered_df$file_created)),
-                  #                end = Sys.Date(), # today
-                  #                min = min(as.Date(filtered_df$file_created)),
-                  #                max = Sys.Date()
-                  # ),
-                  # actionButton("resetFileCreate", "Reset"),
-                  # br(),
-                  # br(),
+                  dateRangeInput('file_created_range',
+                                 label = 'File added to Flywheel (yyyy-mm-dd)',
+                                 start = min(as.Date(filtered_df$file_created)),
+                                 end = Sys.Date(), # today
+                                 min = min(as.Date(filtered_df$file_created)),
+                                 max = Sys.Date()
+                  ),
+                  actionButton("resetFileCreate", "Reset"),
+                  br(),
+                  br(),
                   # dateRangeInput('file_mod_range',
                   #                label = 'File modified on Flywheel (yyyy-mm-dd)',
                   #                start = min(as.Date(filtered_df$file_modified)),
@@ -325,15 +326,15 @@ server <- function(input, output, session) {
     }
   })
   
-  # observeEvent(input$resetFileCreate, {
-  #   updateDateRangeInput(session,
-  #                   "file_created_range",
-  #                   start = min(as.Date(filtered_df$file_created)),
-  #                   end = Sys.Date(),
-  #                   min = min(as.Date(filtered_df$file_created)),
-  #                   max = Sys.Date()
-  #                   )
-  # })
+  observeEvent(input$resetFileCreate, {
+    updateDateRangeInput(session,
+                    "file_created_range",
+                    start = min(as.Date(filtered_df$file_created)),
+                    end = Sys.Date(),
+                    min = min(as.Date(filtered_df$file_created)),
+                    max = Sys.Date()
+                    )
+  })
   # observeEvent(input$resetFileMod, {
   #   updateDateRangeInput(session,
   #                        "file_mod_range",
@@ -398,7 +399,7 @@ server <- function(input, output, session) {
     r_df <- r_df[r_df$age_at_imaging_in_years >= input$age_range[1] & r_df$age_at_imaging_in_years <= input$age_range[2],]
 
     # file dates filter
-    # r_df <- r_df[r_df$file_created >= input$file_created_range[1] & r_df$file_created <= input$file_created_range[2],]
+    r_df <- r_df[r_df$file_created >= input$file_created_range[1] & r_df$file_created <= input$file_created_range[2],]
     # r_df <- r_df[r_df$file_modified >= input$file_mod_range[1] & r_df$file_modified <= input$file_mod_range[2],]
     
     # voxel sizes filter
