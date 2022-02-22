@@ -11,7 +11,6 @@
 
 
 # TO DO:
-#   -- add filters for file created & modified dates
 #   -- add filter for sessions ONLY containing file classifications (vs. ANY)
 #   -- include vox dim? (if so, handle where vox dim = NA)
 
@@ -62,6 +61,12 @@ filtered_df$manufacturer[filtered_df$manufacturer==""]<-"N/A"
 filtered_df$model[filtered_df$model==""]<-"N/A"
 filtered_df$software_ver[filtered_df$software_ver==""]<-"N/A"
 
+# adjust sdg-id labels
+filtered_df$sdg_id[filtered_df$sdg_id==""]<-"N/A"
+
+# adjust body part labels
+filtered_df$body_part_examined[filtered_df$body_part_examined=="sinus"]<-"sinuses"
+
 # round ages
 filtered_df$age_at_imaging_in_years<-round(filtered_df$age_at_imaging_in_years, digits = 1)
 
@@ -105,6 +110,13 @@ cbtn_manufacturer <- unique(sort(df_cbtn$manufacturer))
 cbtn_model <- unique(sort(df_cbtn$model))
 cbtn_software <- unique(sort(df_cbtn$software_ver))
 
+corsica_diagnoses <- as.character(unique(sort(df_corsica$project_label)))
+corsica_file_types <- unique(sort(df_corsica$fw_class,decreasing = TRUE,))
+corsica_body_parts <- unique(sort(df_corsica$body_part_examined))
+corsica_manufacturer <- unique(sort(df_corsica$manufacturer))
+corsica_model <- unique(sort(df_corsica$model))
+corsica_software <- unique(sort(df_corsica$software_ver))
+
 # ==================================================================================================
 ui <- dashboardPage(
 
@@ -113,7 +125,7 @@ ui <- dashboardPage(
   
   # ========= Dashboard Sidebar ==========
   dashboardSidebar(
-    sidebarMenu(
+    sidebarMenu( id = "sidebarmenu",
       menuItem("Overview", tabName = "overview_tab", icon = icon("home")),
       menuItem("CBTN", tabName = "cbtn_imaging", icon = icon("table")),
       menuItem("CORSICA", tabName = "corsica_imaging", icon = icon("table"))
@@ -123,7 +135,7 @@ ui <- dashboardPage(
   # ========= Dashboard Body ==========
   dashboardBody(
     tabItems(
-      # ******** first tab page ******** 
+      # ******** first tab page ******** ******** ******** ******** ******** ******** 
       tabItem(tabName = "overview_tab",
               # titlePanel("Overview"),
               fluidRow(
@@ -174,6 +186,15 @@ ui <- dashboardPage(
                                 div(HTML("<u><em>Body part examined:</em></u> Body part scanned during the imaging exam."),
                                     style = "font-size:16px"),
                                 br(),
+                                div(HTML("<u><em>Scanner Manufacturer:</em></u> Manufacturer of the scanning equipment for a given imaging exam."),
+                                    style = "font-size:16px"),
+                                br(),
+                                div(HTML("<u><em>Scanner Model:</em></u> Model name of the scanning equipment for a given imaging exam."),
+                                    style = "font-size:16px"),
+                                br(),
+                                div(HTML("<u><em>Scanner Software Version:</em></u> Software version designated by the manufacturer for a given imaging exam."),
+                                    style = "font-size:16px"),
+                                br(),
                 ) # col
                 ), # fluidRow
                 fluidRow(column(11,
@@ -182,7 +203,7 @@ ui <- dashboardPage(
                   ) # col
                 ), # fluidRow
                 fluidRow(column(11, offset=1,
-                                div(HTML("<u><em>File types:</em></u> Classification of the type of an acquisition based on text in the file name (file names are derived from the SeriesDescription field in original DICOMs). <br> <b>NOTE:</b> Sessions with any of the selected file types will be included."),
+                                div(HTML("<u><em>Acquisition type:</em></u> Classification of the type of an acquisition based on text in the file name (file names are derived from the SeriesDescription field in original DICOMs). <br> <b>NOTE:</b> Sessions with any of the selected file types will be included."),
                                     style = "font-size:16px"),
                                 br(),
                                 div(HTML("<u><em>File added to Flywheel:</em></u> Date that a file was uploaded to Flywheel (range specifies dates to include)."),
@@ -196,7 +217,7 @@ ui <- dashboardPage(
               # ), # mainPanel
       ), # tabItem
       
-      # ******** second tab page ******** 
+      # ******** second tab page ******** ******** ******** ******** ******** ******** 
       tabItem(tabName = "cbtn_imaging",
               # titlePanel("Children's Brain Tumor Network (Radiology)"),
               fluidRow(
@@ -206,8 +227,8 @@ ui <- dashboardPage(
               
               # summary # boxes
               fluidRow(
-                valueBoxOutput("subjects_w_img_report"),
-                valueBoxOutput("sessions_w_img_report")
+                valueBoxOutput("subjects_w_img_cbtn"),
+                valueBoxOutput("sessions_w_img_cbtn")
               ),
               
               # left-hand filters
@@ -320,7 +341,7 @@ ui <- dashboardPage(
                   actionLink("selectall","Select/deselect All File Types"),
                   selectInput("filter_join2", label = "", choices = c("ANY","ALL")),
                   checkboxGroupInput(inputId = "ClassificationFinder",
-                                     label = "File classification",
+                                     label = "Acquisition type",
                                      choices = cbtn_file_types,
                                      selected = cbtn_file_types)
                 # )
@@ -330,10 +351,123 @@ ui <- dashboardPage(
               tags$head(tags$style(css)), # horiz scroll bar
               fluidRow(
                 column(8, # width
-                       DT::dataTableOutput('table')
+                       DT::dataTableOutput('cbtn_table')
                 )
               )
-      ) # second tab page
+      ), # second tab page
+      
+      # ******** third tab page ******** ******** ******** ******** ******** ******** 
+      tabItem(tabName = "corsica_imaging",
+              # titlePanel("CORSICA (Radiology)"),
+              fluidRow(
+                box( width = 8,
+                     uiOutput(outputId = "corsica_logo") )
+              ),
+              
+              # summary # boxes
+              fluidRow(
+                valueBoxOutput("subjects_w_img_corsica"),
+                valueBoxOutput("sessions_w_img_corsica")
+              ),
+              
+              # left-hand filters
+              sidebarPanel(width = 3,
+                           pickerInput("fw_proj2","Diagnosis", 
+                                       choices=corsica_diagnoses,
+                                       selected=corsica_diagnoses,
+                                       options = list(`actions-box` = TRUE),
+                                       multiple = T),
+                           
+                           # pickerInput("molec_status","Molecular sequencing availability", 
+                           #             choices=c("WGS","RNAseq","Clinical Seq for Event","Clinical Seq Other"),
+                           #             selected=c(),
+                           #             options = list(`actions-box` = TRUE),
+                           #             multiple = T),
+                           # selectInput("filter_join1", label = "", choices = c("OR","AND")),
+                           
+                           # fluidRow(
+                           checkboxGroupInput(inputId = "ModalityFinder2",
+                                              label = "Scan Modalities",
+                                              choices = unique(df_corsica$file_modality),
+                                              selected = unique(df_corsica$file_modality)
+                           ),
+                           
+                           # checkboxGroupInput(inputId = "EventFinder",
+                           #                    label = "Event",
+                           #                    choices = unique(df_corsica$event_label),
+                           #                    selected = unique(df_corsica$event_label)
+                           # ),
+                           
+                           checkboxGroupInput(inputId = "FieldStrengthFinder2",
+                                              label = "Magnetic Field Strength",
+                                              choices = unique(sort(df_corsica$magnetic_field_strength,decreasing = TRUE,)),
+                                              selected = unique(sort(df_corsica$magnetic_field_strength,decreasing = TRUE,))
+                           ),
+                           
+                           pickerInput(inputId = "ManufacturerFinder2",
+                                       label = "Scanner Manufacturer",
+                                       choices = corsica_manufacturer,
+                                       selected = corsica_manufacturer,
+                                       options = list(`actions-box` = TRUE),
+                                       multiple = T
+                           ),
+                           pickerInput(inputId = "ModelFinder2",
+                                       label = "Scanner Model",
+                                       choices = corsica_model,
+                                       selected = corsica_model,
+                                       options = list(`actions-box` = TRUE),
+                                       multiple = T
+                           ),
+                           pickerInput(inputId = "SoftwareFinder2",
+                                       label = "Scanner Software Version",
+                                       choices = corsica_software,
+                                       selected = corsica_software,
+                                       options = list(`actions-box` = TRUE),
+                                       multiple = T
+                           ),
+                           
+                           sliderInput("age_range2",
+                                       "Age at imaging (years)",
+                                       min = min(df_corsica$age_at_imaging_in_years),
+                                       max = max(df_corsica$age_at_imaging_in_years),
+                                       value = c(min(df_corsica$age_at_imaging_in_years),
+                                                 max(df_corsica$age_at_imaging_in_years)),
+                                       sep = "",),
+                           
+                           dateRangeInput('file_created_range2',
+                                          label = 'File added to Flywheel (yyyy-mm-dd)',
+                                          start = min(as.Date(df_corsica$file_created)),
+                                          end = Sys.Date(), # today
+                                          min = min(as.Date(df_corsica$file_created)),
+                                          max = Sys.Date()
+                           ),
+                           actionButton("resetFileCreate2", "Reset"),
+                           br(),
+                           br(),
+
+                           actionLink("selectallbody2","Select/deselect All Body Parts"),
+                           checkboxGroupInput(inputId = "BodyPartFinder2",
+                                              label = "Body part examined",
+                                              choices = corsica_body_parts,
+                                              selected = corsica_body_parts
+                           # ),
+                           
+                           # actionLink("selectall2","Select/deselect All File Types"),
+                           # checkboxGroupInput(inputId = "ClassificationFinder2",
+                           #                    label = "Acquisition type",
+                           #                    choices = corsica_file_types,
+                           #                    selected = corsica_file_types
+                           )
+              ),
+              
+              # Data Table
+              tags$head(tags$style(css)), # horiz scroll bar
+              fluidRow(
+                column(8, # width
+                       DT::dataTableOutput('corsica_table')
+                )
+              )
+      ) # third tab page
     ) # tabItems
   ) # dashboardBody
 
@@ -343,22 +477,23 @@ ui <- dashboardPage(
 
 # Define server logic
 server <- function(input, output, session) {
+
   # configure the "select all" for file classification filter
   observe({
-    if(input$selectall == 0) return(NULL) 
+    if(input$selectall == 0) return(NULL)
     else if (input$selectall%%2 == 0)
     {
-      updateCheckboxGroupInput(session,"ClassificationFinder","File classification",choices=cbtn_file_types)
+      updateCheckboxGroupInput(session,"ClassificationFinder","Acquisition type",choices=cbtn_file_types)
     }
     else
     {
-      updateCheckboxGroupInput(session,"ClassificationFinder","File classification",choices=cbtn_file_types,selected=cbtn_file_types)
+      updateCheckboxGroupInput(session,"ClassificationFinder","Acquisition type",choices=cbtn_file_types,selected=cbtn_file_types)
     }
   })
 
   # configure the "select all" for body-part filter
   observe({
-    if(input$selectallbody == 0) return(NULL) 
+    if(input$selectallbody == 0) return(NULL)
     else if (input$selectallbody%%2 == 0)
     {
       updateCheckboxGroupInput(session,"BodyPartFinder","Body part examined",choices=cbtn_body_parts)
@@ -368,7 +503,8 @@ server <- function(input, output, session) {
       updateCheckboxGroupInput(session,"BodyPartFinder","Body part examined",choices=cbtn_body_parts, selected=cbtn_body_parts)
     }
   })
-  
+
+  # dynamic date range
   observeEvent(input$resetFileCreate, {
     updateDateRangeInput(session,
                     "file_created_range",
@@ -378,35 +514,36 @@ server <- function(input, output, session) {
                     max = Sys.Date()
                     )
   })
+
+  # dynamic scanner manufacturer filter (based on Diagnosis)
+  observeEvent(D0(),{
+    updatePickerInput(session,"ManufacturerFinder",choices = unique(D0()$manufacturer),selected = unique(D0()$manufacturer))
+  })
+  D0  <- reactive({
+    df_cbtn[df_cbtn$project_label %in% input$fw_proj,]
+  })
   
+  # dynamic scanner model filter (based on Diagnosis & Manufacturer)
   observeEvent(D1(),{
     updatePickerInput(session,"ModelFinder",choices = unique(D1()$model),selected = unique(D1()$model))
   })
   D1  <- reactive({
-    df_cbtn[df_cbtn$manufacturer %in% input$ManufacturerFinder,]
+    filter(df_cbtn, project_label %in% input$fw_proj ) %>%
+      filter(manufacturer %in% input$ManufacturerFinder )
   })
-  
+
+  # dynamic scanner software filter (based on Diagnosis, Manufacturer, & Model)
   observeEvent(D2(),{
     updatePickerInput(session,"SoftwareFinder",choices = unique(D2()$software),selected = unique(D2()$software))
   })
   D2  <- reactive({
-    df_cbtn[df_cbtn$model %in% input$ModelFinder,]
+    filter(df_cbtn, project_label %in% input$fw_proj ) %>%
+      filter(manufacturer %in% input$ManufacturerFinder ) %>%
+      filter(model %in% input$ModelFinder )
   })
   
-  
-  # observeEvent(input$resetFileMod, {
-  #   updateDateRangeInput(session,
-  #                        "file_mod_range",
-  #                        start = min(as.Date(df_cbtn$file_modified)),
-  #                        end = Sys.Date(),
-  #                        min = min(as.Date(df_cbtn$file_modified)),
-  #                        max = Sys.Date()
-  #   )
-  # })
-  
-
   # filter the input dataframe
-  final_df <- reactive({
+  final_df_cbtn <- reactive({
     r_df <- filter(df_cbtn, project_label %in% input$fw_proj ) %>%
             filter(file_modality %in% input$ModalityFinder ) %>%
             filter(event_label %in% input$EventFinder ) %>%
@@ -486,9 +623,104 @@ server <- function(input, output, session) {
     r_df <- r_df[!duplicated(r_df), ]
     r_df <- r_df[order(r_df$subject_label,r_df$session_label,r_df$acquisition_label), ]
     r_df
-  })
+  }) # reactive
 
-  # ********** render stuff **********************
+  ## ****************** CORSICA DF ******************  ******************  ****************** 
+  # configure the "select all" for file classification filter
+  # observe({
+  #   if(input$selectall2 == 0) return(NULL)
+  #   else if (input$selectall2%%2 == 0)
+  #   {
+  #     updateCheckboxGroupInput(session,"ClassificationFinder2","Acquisition type",choices=corsica_file_types)
+  #   }
+  #   else
+  #   {
+  #     updateCheckboxGroupInput(session,"ClassificationFinder2","Acquisition type",choices=corsica_file_types,selected=corsica_file_types)
+  #   }
+  # })
+  
+  # configure the "select all" for body-part filter
+  observe({
+    if(input$selectallbody2 == 0) return(NULL)
+    else if (input$selectallbody2%%2 == 0)
+    {
+      updateCheckboxGroupInput(session,"BodyPartFinder2","Body part examined",choices=corsica_body_parts)
+    }
+    else
+    {
+      updateCheckboxGroupInput(session,"BodyPartFinder2","Body part examined",choices=corsica_body_parts, selected=corsica_body_parts)
+    }
+  })
+  
+  # dynamic date range filter
+  observeEvent(input$resetFileCreate2, {
+    updateDateRangeInput(session,
+                         "file_created_range2",
+                         start = min(as.Date(df_corsica$file_created)),
+                         end = Sys.Date(),
+                         min = min(as.Date(df_corsica$file_created)),
+                         max = Sys.Date()
+    )
+  })
+  
+  # dynamic scanner manufacturer filter (based on Diagnosis)
+  observeEvent(D3(),{
+    updatePickerInput(session,"ManufacturerFinder2",choices = unique(D3()$manufacturer),selected = unique(D3()$manufacturer))
+  })
+  D3  <- reactive({
+    df_corsica[df_corsica$project_label %in% input$fw_proj2,]
+  })
+  
+  # dynamic scanner model filter (based on Diagnosis & Manufacturer)
+  observeEvent(D4(),{
+    updatePickerInput(session,"ModelFinder2",choices = unique(D4()$model),selected = unique(D4()$model))
+  })
+  D4  <- reactive({
+    filter(df_corsica, project_label %in% input$fw_proj2 ) %>%
+      filter(manufacturer %in% input$ManufacturerFinder2 )
+  })
+  
+  # dynamic scanner software filter (based on Diagnosis, Manufacturer, & Model)
+  observeEvent(D5(),{
+    updatePickerInput(session,"SoftwareFinder2",choices = unique(D5()$software),selected = unique(D5()$software))
+  })
+  D5  <- reactive({
+    filter(df_corsica, project_label %in% input$fw_proj2 ) %>%
+      filter(manufacturer %in% input$ManufacturerFinder2 ) %>%
+      filter(model %in% input$ModelFinder2 )
+  })
+  
+  # filter the dataframe
+  final_df_corsica <- reactive({
+    r_df <- filter(df_corsica, project_label %in% input$fw_proj2 ) %>%
+      filter(file_modality %in% input$ModalityFinder2 ) %>%
+      # filter(event_label %in% input$EventFinder2 ) %>%
+      filter(body_part_examined %in% input$BodyPartFinder2 ) %>%
+      filter(magnetic_field_strength %in% input$FieldStrengthFinder2 ) %>%
+      filter(manufacturer %in% input$ManufacturerFinder2 ) %>%
+      filter(model %in% input$ModelFinder2 ) %>%
+      filter(software_ver %in% input$SoftwareFinder2 )
+    
+    # age-at-imaging filter
+    r_df <- r_df[r_df$age_at_imaging_in_years >= input$age_range2[1] & r_df$age_at_imaging_in_years <= input$age_range2[2],]
+    
+    # file dates filter
+    r_df <- r_df[r_df$file_created >= input$file_created_range2[1] & r_df$file_created <= input$file_created_range2[2],]
+
+    # clean up & output table
+    #    r_df = subset(r_df, select = c("project_label","subject_label","session_label",
+    # "acquisition_label","file_modality","magnetic_field_strength",
+    # "fw_class","dim1","dim2","event_label",'body_part_examined') )
+    r_df = subset(r_df, select = c("project_label","subject_label","session_label","sdg_id",
+                                   "acquisition_label","file_modality","magnetic_field_strength",
+                                   "fw_class",'body_part_examined') )
+                            # "event_label"
+    r_df <- r_df[!duplicated(r_df), ]
+    r_df <- r_df[order(r_df$subject_label,r_df$session_label,r_df$acquisition_label), ]
+    r_df
+  }) # reactive
+  
+  # ********** render stuff ****************************************************************************************
   # render images
   output$cbtn_logo<-renderUI({
     img(src='cbtn_logo.png', height = '150px')
@@ -496,9 +728,12 @@ server <- function(input, output, session) {
   output$d3b_logo<-renderUI({
     img(src='d3b_logo_cropped.jpg', height = '150px')
   })
+  output$corsica_logo<-renderUI({
+    img(src='corsica_logo.png', height = '150px')
+  })
   
-  output$table <- DT::renderDT( { #server = FALSE, { # if server = TRUE, then Download-all button doesn't work (but could remove it and keep Download-current-page w/"All" menu length)
-    df <- final_df()
+  output$cbtn_table <- DT::renderDT( { #server = FALSE, { # if server = TRUE, then Download-all button doesn't work (but could remove it and keep Download-current-page w/"All" menu length)
+    df <- final_df_cbtn()
     dtable <- DT::datatable(df, 
                         filter = "top",
                         rownames = FALSE, 
@@ -510,7 +745,7 @@ server <- function(input, output, session) {
                                        dom = "Blfrtip",
                                        scrollX = TRUE,
                                        buttons = list(
-                                         list(extend = "excel", text = "Download Current Page", filename = "flywheel_cbtn_file_metadata",
+                                         list(extend = "excel", text = "Download Current Page", filename = "flywheel_file_metadata",
                                               exportOptions = list(
                                                 modifier = list(page = "current"),
                                                 worksheet = 'new',
@@ -528,9 +763,40 @@ server <- function(input, output, session) {
     dtable
   })
   
+  output$corsica_table <- DT::renderDT( { #server = FALSE, { # if server = TRUE, then Download-all button doesn't work (but could remove it and keep Download-current-page w/"All" menu length)
+    df <- final_df_corsica()
+    dtable <- DT::datatable(df, 
+                            filter = "top",
+                            rownames = FALSE, 
+                            extensions = "Buttons", 
+                            class = "nowrap display", 
+                            options = list(pageLength = 10,
+                                           lengthMenu = list(c(10, 50, 100, -1), c('10', '50','100','All')),
+                                           #rowsGroup = list(0,1,2,3,4,5,6,7,8),
+                                           dom = "Blfrtip",
+                                           scrollX = TRUE,
+                                           buttons = list(
+                                             list(extend = "excel", text = "Download Current Page", filename = "flywheel_file_metadata",
+                                                  exportOptions = list(
+                                                    modifier = list(page = "current"),
+                                                    worksheet = 'new',
+                                                    title = NULL
+                                                  )
+                                             ) # list
+                                           )
+                            ) # datatable
+    ) # renderDT
+    path <- "./www" # folder containing dataTables.rowsGroup.js
+    dep <- htmltools::htmlDependency(
+      "RowsGroup", "2.0.0", 
+      path, script = "dataTables.rowsGroup.js")
+    dtable$dependencies <- c(dtable$dependencies, list(dep))
+    dtable
+  })
+  
   # construct the # subjects box
-    output$subjects_w_img_report <- renderValueBox({
-        df <- final_df() 
+    output$subjects_w_img_cbtn <- renderValueBox({
+        df <- final_df_cbtn() 
         distinct_sub_w_img <- df %>% summarise(n = n_distinct(`subject_label`))
         distinct_sub_w_img %>%
           as.integer() %>%
@@ -539,8 +805,8 @@ server <- function(input, output, session) {
                    color = "green")
       })
     # construct the # sessions box
-    output$sessions_w_img_report <- renderValueBox({
-      df <- final_df()
+    output$sessions_w_img_cbtn <- renderValueBox({
+      df <- final_df_cbtn()
       distinct_ses_w_img <- df %>% group_by(subject_label) %>%
                                    dplyr::summarise(n = n_distinct(session_label))
       sum(distinct_ses_w_img$n) %>%
@@ -550,7 +816,27 @@ server <- function(input, output, session) {
                  color = "green")
     })
     
-
+    # construct the # subjects box
+    output$subjects_w_img_corsica <- renderValueBox({
+      df <- final_df_corsica() 
+      distinct_sub_w_img <- df %>% summarise(n = n_distinct(`subject_label`))
+      distinct_sub_w_img %>%
+        as.integer() %>%
+        prettyNum(big.mark = ",") %>%
+        valueBox(subtitle = "Number of subjects",
+                 color = "green")
+    })
+    # construct the # sessions box
+    output$sessions_w_img_corsica <- renderValueBox({
+      df <- final_df_corsica()
+      distinct_ses_w_img <- df %>% group_by(subject_label) %>%
+        dplyr::summarise(n = n_distinct(session_label))
+      sum(distinct_ses_w_img$n) %>%
+        # as.integer() %>%
+        prettyNum(big.mark = ",") %>%
+        valueBox(subtitle = "Number of sessions",
+                 color = "green")
+    })
 }
 
 # Run the application 
