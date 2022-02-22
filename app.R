@@ -47,13 +47,20 @@ filtered_df <- histdata
 filtered_df$magnetic_field_strength <- as.numeric(filtered_df$magnetic_field_strength)
 filtered_df$magnetic_field_strength[filtered_df$magnetic_field_strength==15000]<-1.5
 filtered_df$magnetic_field_strength<-round(filtered_df$magnetic_field_strength, digits = 1)
+filtered_df$magnetic_field_strength[filtered_df$magnetic_field_strength==2.9]<-3
 
 filtered_df$magnetic_field_strength[is.na(filtered_df$magnetic_field_strength)]<-"N/A"
 
-# adjust body-part labels
-filtered_df$body_part_examined[filtered_df$body_part_examined=="iac"]<-"brain (iac)"
-filtered_df$body_part_examined[filtered_df$body_part_examined=="pituitary"]<-"brain (pituitary)"
-filtered_df$body_part_examined[filtered_df$body_part_examined=="face"]<-"brain (face)"
+# adjust modality labels
+filtered_df$file_modality[filtered_df$file_modality=="PT"]<-"PET"
+
+# adjust scanner labels
+filtered_df$manufacturer[is.na(filtered_df$manufacturer)]<-"N/A"
+filtered_df$model[is.na(filtered_df$model)]<-"N/A"
+filtered_df$software_ver[is.na(filtered_df$software_ver)]<-"N/A"
+filtered_df$manufacturer[filtered_df$manufacturer==""]<-"N/A"
+filtered_df$model[filtered_df$model==""]<-"N/A"
+filtered_df$software_ver[filtered_df$software_ver==""]<-"N/A"
 
 # round ages
 filtered_df$age_at_imaging_in_years<-round(filtered_df$age_at_imaging_in_years, digits = 1)
@@ -81,10 +88,22 @@ filtered_df$fw_class[filtered_df$fw_class=="  "]<-"None"
 
 # date <- as.Date(as.character(date), format = "%Y-%m-%d")
 
+# separate projects
+df_corsica = subset(filtered_df, project_label=="Corsica")
+df_cbtn = subset(filtered_df, project_label!="Corsica")
+
+# adjust body-part labels
+df_cbtn$body_part_examined[df_cbtn$body_part_examined=="iac"]<-"brain (iac)"
+df_cbtn$body_part_examined[df_cbtn$body_part_examined=="pituitary"]<-"brain (pituitary)"
+df_cbtn$body_part_examined[df_cbtn$body_part_examined=="face"]<-"brain (face)"
+
 # filter text
-diagnoses <- as.character(unique(sort(filtered_df$project_label)))
-file_types <- unique(sort(filtered_df$fw_class,decreasing = TRUE,))
-body_parts <- unique(sort(filtered_df$body_part_examined))
+cbtn_diagnoses <- as.character(unique(sort(df_cbtn$project_label)))
+cbtn_file_types <- unique(sort(df_cbtn$fw_class,decreasing = TRUE,))
+cbtn_body_parts <- unique(sort(df_cbtn$body_part_examined))
+cbtn_manufacturer <- unique(sort(df_cbtn$manufacturer))
+cbtn_model <- unique(sort(df_cbtn$model))
+cbtn_software <- unique(sort(df_cbtn$software_ver))
 
 # ==================================================================================================
 ui <- dashboardPage(
@@ -96,7 +115,8 @@ ui <- dashboardPage(
   dashboardSidebar(
     sidebarMenu(
       menuItem("Overview", tabName = "overview_tab", icon = icon("home")),
-      menuItem("CBTN Imaging Data", tabName = "cbtn_imaging", icon = icon("table"))
+      menuItem("CBTN", tabName = "cbtn_imaging", icon = icon("table")),
+      menuItem("CORSICA", tabName = "corsica_imaging", icon = icon("table"))
     )
   ),
   
@@ -193,8 +213,8 @@ ui <- dashboardPage(
               # left-hand filters
               sidebarPanel(width = 3,
                 pickerInput("fw_proj","Diagnosis", 
-                            choices=diagnoses,
-                            selected=diagnoses,
+                            choices=cbtn_diagnoses,
+                            selected=cbtn_diagnoses,
                             options = list(`actions-box` = TRUE),
                             multiple = T),
 
@@ -208,35 +228,57 @@ ui <- dashboardPage(
                 # fluidRow(
                   checkboxGroupInput(inputId = "ModalityFinder",
                                      label = "Scan Modalities",
-                                     choices = unique(filtered_df$file_modality),
-                                     selected = unique(filtered_df$file_modality)
-                  ),
-                  
-                  checkboxGroupInput(inputId = "FieldStrengthFinder",
-                                     label = "Magnetic Field Strength",
-                                     choices = unique(sort(filtered_df$magnetic_field_strength,decreasing = TRUE,)),
-                                     selected = unique(sort(filtered_df$magnetic_field_strength,decreasing = TRUE,))
+                                     choices = unique(df_cbtn$file_modality),
+                                     selected = unique(df_cbtn$file_modality)
                   ),
                   
                   checkboxGroupInput(inputId = "EventFinder",
                                      label = "Event",
-                                     choices = unique(filtered_df$event_label),
-                                     selected = unique(filtered_df$event_label)
+                                     choices = unique(df_cbtn$event_label),
+                                     selected = unique(df_cbtn$event_label)
                   ),
-                  
+
+                  checkboxGroupInput(inputId = "FieldStrengthFinder",
+                                     label = "Magnetic Field Strength",
+                                     choices = unique(sort(df_cbtn$magnetic_field_strength,decreasing = TRUE,)),
+                                     selected = unique(sort(df_cbtn$magnetic_field_strength,decreasing = TRUE,))
+                  ),
+                
+                  pickerInput(inputId = "ManufacturerFinder",
+                                     label = "Scanner Manufacturer",
+                                     choices = cbtn_manufacturer,
+                                     selected = cbtn_manufacturer,
+                                     options = list(`actions-box` = TRUE),
+                                     multiple = T
+                  ),
+                  pickerInput(inputId = "ModelFinder",
+                              label = "Scanner Model",
+                              choices = cbtn_model,
+                              selected = cbtn_model,
+                              options = list(`actions-box` = TRUE),
+                              multiple = T
+                  ),
+                  pickerInput(inputId = "SoftwareFinder",
+                              label = "Scanner Software Version",
+                              choices = cbtn_software,
+                              selected = cbtn_software,
+                              options = list(`actions-box` = TRUE),
+                              multiple = T
+                  ),
+
                   sliderInput("age_range",
                               "Age at imaging (years)",
-                              min = min(filtered_df$age_at_imaging_in_years),
-                              max = max(filtered_df$age_at_imaging_in_years),
-                              value = c(min(filtered_df$age_at_imaging_in_years),
-                                        max(filtered_df$age_at_imaging_in_years)),
+                              min = min(df_cbtn$age_at_imaging_in_years),
+                              max = max(df_cbtn$age_at_imaging_in_years),
+                              value = c(min(df_cbtn$age_at_imaging_in_years),
+                                        max(df_cbtn$age_at_imaging_in_years)),
                               sep = "",),
                   
                   dateRangeInput('file_created_range',
                                  label = 'File added to Flywheel (yyyy-mm-dd)',
-                                 start = min(as.Date(filtered_df$file_created)),
+                                 start = min(as.Date(df_cbtn$file_created)),
                                  end = Sys.Date(), # today
-                                 min = min(as.Date(filtered_df$file_created)),
+                                 min = min(as.Date(df_cbtn$file_created)),
                                  max = Sys.Date()
                   ),
                   actionButton("resetFileCreate", "Reset"),
@@ -244,9 +286,9 @@ ui <- dashboardPage(
                   br(),
                   # dateRangeInput('file_mod_range',
                   #                label = 'File modified on Flywheel (yyyy-mm-dd)',
-                  #                start = min(as.Date(filtered_df$file_modified)),
+                  #                start = min(as.Date(df_cbtn$file_modified)),
                   #                end = Sys.Date(), # today
-                  #                min = min(as.Date(filtered_df$file_modified)),
+                  #                min = min(as.Date(df_cbtn$file_modified)),
                   #                max = Sys.Date()
                   # ),
                   # actionButton("resetFileMod", "Reset"),
@@ -255,31 +297,32 @@ ui <- dashboardPage(
                 
                   # sliderInput("dim1_range",
                   #             "Voxel size: dim1",
-                  #             min = min(filtered_df$dim1, na.rm = TRUE),  
-                  #             max = max(filtered_df$dim1, na.rm = TRUE), 
-                  #             value = c(min(filtered_df$dim1, na.rm = TRUE), 
-                  #                       max(filtered_df$dim1, na.rm = TRUE)),
+                  #             min = min(df_cbtn$dim1, na.rm = TRUE),  
+                  #             max = max(df_cbtn$dim1, na.rm = TRUE), 
+                  #             value = c(min(df_cbtn$dim1, na.rm = TRUE), 
+                  #                       max(df_cbtn$dim1, na.rm = TRUE)),
                   #             sep = "",),
                   # sliderInput("dim2_range",
                   #             "Voxel size: dim2",
-                  #             min = min(filtered_df$dim2, na.rm = TRUE),  
-                  #             max = max(filtered_df$dim2, na.rm = TRUE), 
-                  #             value = c(min(filtered_df$dim2, na.rm = TRUE), 
-                  #                       max(filtered_df$dim2, na.rm = TRUE)),
+                  #             min = min(df_cbtn$dim2, na.rm = TRUE),  
+                  #             max = max(df_cbtn$dim2, na.rm = TRUE), 
+                  #             value = c(min(df_cbtn$dim2, na.rm = TRUE), 
+                  #                       max(df_cbtn$dim2, na.rm = TRUE)),
                   #             sep = "",),
                   
                   actionLink("selectallbody","Select/deselect All Body Parts"),
                   checkboxGroupInput(inputId = "BodyPartFinder",
                                      label = "Body part examined",
-                                     choices = body_parts,
-                                     selected = body_parts
+                                     choices = cbtn_body_parts,
+                                     selected = cbtn_body_parts
                   ),
                   
                   actionLink("selectall","Select/deselect All File Types"),
+                  selectInput("filter_join2", label = "", choices = c("ANY","ALL")),
                   checkboxGroupInput(inputId = "ClassificationFinder",
                                      label = "File classification",
-                                     choices = file_types,
-                                     selected = file_types)
+                                     choices = cbtn_file_types,
+                                     selected = cbtn_file_types)
                 # )
               ),
               
@@ -305,11 +348,11 @@ server <- function(input, output, session) {
     if(input$selectall == 0) return(NULL) 
     else if (input$selectall%%2 == 0)
     {
-      updateCheckboxGroupInput(session,"ClassificationFinder","File classification",choices=file_types)
+      updateCheckboxGroupInput(session,"ClassificationFinder","File classification",choices=cbtn_file_types)
     }
     else
     {
-      updateCheckboxGroupInput(session,"ClassificationFinder","File classification",choices=file_types,selected=file_types)
+      updateCheckboxGroupInput(session,"ClassificationFinder","File classification",choices=cbtn_file_types,selected=cbtn_file_types)
     }
   })
 
@@ -318,29 +361,45 @@ server <- function(input, output, session) {
     if(input$selectallbody == 0) return(NULL) 
     else if (input$selectallbody%%2 == 0)
     {
-      updateCheckboxGroupInput(session,"BodyPartFinder","Body part examined",choices=body_parts)
+      updateCheckboxGroupInput(session,"BodyPartFinder","Body part examined",choices=cbtn_body_parts)
     }
     else
     {
-      updateCheckboxGroupInput(session,"BodyPartFinder","Body part examined",choices=body_parts, selected=body_parts)
+      updateCheckboxGroupInput(session,"BodyPartFinder","Body part examined",choices=cbtn_body_parts, selected=cbtn_body_parts)
     }
   })
   
   observeEvent(input$resetFileCreate, {
     updateDateRangeInput(session,
                     "file_created_range",
-                    start = min(as.Date(filtered_df$file_created)),
+                    start = min(as.Date(df_cbtn$file_created)),
                     end = Sys.Date(),
-                    min = min(as.Date(filtered_df$file_created)),
+                    min = min(as.Date(df_cbtn$file_created)),
                     max = Sys.Date()
                     )
   })
+  
+  observeEvent(D1(),{
+    updatePickerInput(session,"ModelFinder",choices = unique(D1()$model),selected = unique(D1()$model))
+  })
+  D1  <- reactive({
+    df_cbtn[df_cbtn$manufacturer %in% input$ManufacturerFinder,]
+  })
+  
+  observeEvent(D2(),{
+    updatePickerInput(session,"SoftwareFinder",choices = unique(D2()$software),selected = unique(D2()$software))
+  })
+  D2  <- reactive({
+    df_cbtn[df_cbtn$model %in% input$ModelFinder,]
+  })
+  
+  
   # observeEvent(input$resetFileMod, {
   #   updateDateRangeInput(session,
   #                        "file_mod_range",
-  #                        start = min(as.Date(filtered_df$file_modified)),
+  #                        start = min(as.Date(df_cbtn$file_modified)),
   #                        end = Sys.Date(),
-  #                        min = min(as.Date(filtered_df$file_modified)),
+  #                        min = min(as.Date(df_cbtn$file_modified)),
   #                        max = Sys.Date()
   #   )
   # })
@@ -348,12 +407,24 @@ server <- function(input, output, session) {
 
   # filter the input dataframe
   final_df <- reactive({
-    r_df <- filter(filtered_df, project_label %in% input$fw_proj ) %>%
+    r_df <- filter(df_cbtn, project_label %in% input$fw_proj ) %>%
             filter(file_modality %in% input$ModalityFinder ) %>%
-            filter(fw_class %in% input$ClassificationFinder ) %>%
             filter(event_label %in% input$EventFinder ) %>%
             filter(body_part_examined %in% input$BodyPartFinder ) %>%
-            filter(magnetic_field_strength %in% input$FieldStrengthFinder )
+            filter(magnetic_field_strength %in% input$FieldStrengthFinder ) %>%
+            filter(manufacturer %in% input$ManufacturerFinder ) %>%
+            filter(model %in% input$ModelFinder ) %>%
+            filter(software_ver %in% input$SoftwareFinder )
+      
+    # filter files based on classifications
+    if (input$filter_join2=="ANY"){
+      # includes any sessions w/selected file types
+      r_df <- filter(r_df, fw_class %in% input$ClassificationFinder )
+    } else {
+      # includes all sessions w/selected file types
+      r_df <- r_df %>% group_by(session_label) %>%
+                  filter(fw_class %in% input$ClassificationFinder )
+    }
 
     wgs <- gsub("'", "", r_df$WGS_coded)
     rna <- gsub("'", "", r_df$RNAseq_coded)
@@ -379,7 +450,6 @@ server <- function(input, output, session) {
         r_df <- as.data.frame(r_df)[eval(cond), ]
         
         } else {
-          
             if('WGS' %in% input$molec_status){
               r_df <- r_df[r_df$WGS == "Yes",]
             }
